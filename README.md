@@ -10,7 +10,7 @@ A polyglot development container with Python, Go, and TypeScript/JavaScript tool
 | Go | 1.25 | native | `golangci-lint` |
 | TypeScript/JS | Bun | `bun` | ESLint, Prettier |
 
-Also includes: Git, Claude Code, Firebase CLI.
+Also includes: Git, GitHub CLI (`gh`), Claude Code.
 
 ## Platform support
 

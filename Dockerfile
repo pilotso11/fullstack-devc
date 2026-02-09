@@ -16,12 +16,19 @@ RUN apt-get update && apt-get install -y \
     unzip \
     && rm -rf /var/lib/apt/lists/*
 
+# Install GitHub CLI
+RUN mkdir -p /etc/apt/keyrings && \
+    wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null && \
+    chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+
 # Install Python 3.13 via deadsnakes PPA (not in Ubuntu 24.04 default repos)
 RUN add-apt-repository ppa:deadsnakes/ppa && \
     apt-get update && apt-get install -y \
     python3.13 \
     python3.13-dev \
     python3-pip \
+    gh \
     && rm -rf /var/lib/apt/lists/*
 
 # Set Python 3.13 as default
@@ -54,6 +61,11 @@ USER developer
 ENV HOME=/home/developer
 ENV GOPATH="/home/developer/go"
 ENV PATH="/home/developer/.local/bin:/home/developer/.bun/bin:${GOPATH}/bin:${PATH}"
+
+# Enable claude features
+ENV CLAUDE_UNSAFE_MODE=true
+ENV CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=true
+
 
 # Install Bun (includes Node.js/TypeScript tooling)
 RUN curl -fsSL https://bun.sh/install | bash
