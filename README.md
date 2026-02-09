@@ -35,9 +35,20 @@ Add a `.devcontainer/devcontainer.json` to your project:
   "name": "My Project",
   "image": "pilotso11/fullstack-devc:latest",
   "remoteUser": "developer",
+  "mounts": [
+    "source=${localEnv:HOME}/.claude,target=/home/developer/.claude,type=bind,consistency=cached"
+  ],
   "postCreateCommand": "bash -c '[ -f requirements.txt ] && uv pip install --system -r requirements.txt; [ -f go.mod ] && go mod download; [ -f package.json ] && bun install; true'",
   "forwardPorts": [3000, 5173, 8000, 8080]
 }
+```
+
+The `mounts` configuration shares your host's `~/.claude` directory with the container, persisting Claude Code settings, API keys, and session history across all projects. Alternatively, use a named volume for per-project isolation:
+
+```json
+"mounts": [
+  "source=myproject-claude-settings,target=/home/developer/.claude,type=volume"
+]
 ```
 
 ### Dependency auto-installation

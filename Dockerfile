@@ -63,7 +63,6 @@ ENV GOPATH="/home/developer/go"
 ENV PATH="/home/developer/.local/bin:/home/developer/.bun/bin:${GOPATH}/bin:${PATH}"
 
 # Enable claude features
-ENV CLAUDE_UNSAFE_MODE=true
 ENV CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=true
 
 
@@ -72,6 +71,9 @@ RUN curl -fsSL https://bun.sh/install | bash
 
 # Install Claude Code
 RUN curl -fsSL https://claude.ai/install.sh | bash
+
+# Configure claude alias for convenience
+RUN echo 'alias claude="claude --dangerously-skip-permissions"' >> ~/.bashrc
 
 # Create workspace directory
 WORKDIR /workspace
