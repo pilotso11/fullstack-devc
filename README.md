@@ -10,7 +10,7 @@ A polyglot development container with Python, Go, and TypeScript/JavaScript tool
 | Go | 1.25 | native | `golangci-lint` |
 | TypeScript/JS | Bun | `bun` | ESLint, Prettier |
 
-Also includes: Git, GitHub CLI (`gh`), Google Cloud CLI (`gcloud`), AWS CLI (`aws`), Claude Code.
+Also includes: Git, GitHub CLI (`gh`), Google Cloud CLI (`gcloud`), AWS CLI (`aws`), kubectl, jq, vim, nano, Claude Code.
 
 ## Platform support
 
@@ -36,7 +36,8 @@ Add a `.devcontainer/devcontainer.json` to your project:
   "image": "pilotso11/fullstack-devc:latest",
   "remoteUser": "developer",
   "mounts": [
-    "source=${localEnv:HOME}/.claude,target=/home/developer/.claude,type=bind,consistency=cached"
+    "source=${localEnv:HOME}/.claude,target=/home/developer/.claude,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.config/gcloud,target=/home/developer/.config/gcloud,type=bind"
   ],
   "postCreateCommand": "bash -c '[ -f requirements.txt ] && uv pip install --system -r requirements.txt; [ -f go.mod ] && go mod download; [ -f package.json ] && bun install; true'",
   "forwardPorts": [3000, 5173, 8000, 8080]

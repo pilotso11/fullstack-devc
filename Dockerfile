@@ -14,6 +14,9 @@ RUN apt-get update && apt-get install -y \
     software-properties-common \
     sudo \
     unzip \
+    jq \
+    vim \
+    nano \
     && rm -rf /var/lib/apt/lists/*
 
 # Install GitHub CLI
@@ -26,6 +29,11 @@ RUN mkdir -p /etc/apt/keyrings && \
 RUN echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && \
     wget -qO- https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg
 
+# Install kubectl
+RUN curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg && \
+    chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg && \
+    echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list
+
 # Install Python 3.13 via deadsnakes PPA (not in Ubuntu 24.04 default repos)
 RUN add-apt-repository ppa:deadsnakes/ppa && \
     apt-get update && apt-get install -y \
@@ -34,6 +42,7 @@ RUN add-apt-repository ppa:deadsnakes/ppa && \
     python3-pip \
     gh \
     google-cloud-cli \
+    kubectl \
     && rm -rf /var/lib/apt/lists/*
 
 # Install AWS CLI v2
