@@ -28,15 +28,17 @@ The image is built for `linux/amd64` and `linux/arm64`.
 
 ### As a VS Code dev container
 
-Add a `.devcontainer/devcontainer.json` to your project referencing the image:
+Add a `.devcontainer/devcontainer.json` to your project:
 
 ```json
 {
-  "image": "pilotso11/fullstack-devc:latest"
+  "name": "My Project",
+  "image": "pilotso11/fullstack-devc:latest",
+  "remoteUser": "developer",
+  "postCreateCommand": "bash -c '[ -f requirements.txt ] && uv pip install --system -r requirements.txt; [ -f go.mod ] && go mod download; [ -f package.json ] && bun install; true'",
+  "forwardPorts": [3000, 5173, 8000, 8080]
 }
 ```
-
-Or use this repository's `.devcontainer/devcontainer.json` directly, which also configures VS Code extensions and port forwarding.
 
 ### Dependency auto-installation
 
