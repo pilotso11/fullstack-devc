@@ -94,6 +94,15 @@ ENV CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=true
 # Install Bun (includes Node.js/TypeScript tooling)
 RUN curl -fsSL https://bun.sh/install | bash
 
+# Install AI coding assistants via bun (npm compatible)
+RUN bun install -g @openai/codex @github/copilot
+
+# Create wrapper scripts for AI tools to use bunx
+RUN mkdir -p /home/developer/.local/bin && \
+    echo '#!/bin/bash\nbunx --bun codex "$@"' > /home/developer/.local/bin/codex && \
+    echo '#!/bin/bash\nbunx --bun copilot "$@"' > /home/developer/.local/bin/copilot && \
+    chmod +x /home/developer/.local/bin/codex /home/developer/.local/bin/copilot
+
 # Install Claude Code
 RUN curl -fsSL https://claude.ai/install.sh | bash
 
