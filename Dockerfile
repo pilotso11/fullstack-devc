@@ -14,9 +14,15 @@ RUN apt-get update && apt-get install -y \
     software-properties-common \
     sudo \
     unzip \
+    zip \
     jq \
     vim \
     nano \
+    perl \
+    rsync \
+    openssh-client \
+    less \
+    tree \
     && rm -rf /var/lib/apt/lists/*
 
 # Install GitHub CLI
