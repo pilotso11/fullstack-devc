@@ -97,6 +97,9 @@ RUN curl -fsSL https://bun.sh/install | bash
 # Install Claude Code
 RUN curl -fsSL https://claude.ai/install.sh | bash
 
+# Install claude-switch (toggle between Claude API backends)
+RUN curl -sSL https://raw.githubusercontent.com/pilotso11/claude-switch/main/install.sh | bash
+
 # Configure claude alias for convenience
 RUN echo 'alias claude="claude --dangerously-skip-permissions"' >> ~/.bashrc
 
