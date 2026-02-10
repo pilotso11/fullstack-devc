@@ -23,6 +23,9 @@ RUN apt-get update && apt-get install -y \
     openssh-client \
     less \
     tree \
+    net-tools \
+    iputils-ping \
+    traceroute \
     && rm -rf /var/lib/apt/lists/*
 
 # Install GitHub CLI
