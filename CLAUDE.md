@@ -44,6 +44,7 @@ Claude Code is also pre-installed at `/root/.claude/bin`.
 - `5173` — Vite dev server
 - `8000` — Backend API
 - `8080` — General HTTP
+- `5432` — PostgreSQL (optional, start with `pg-start`)
 
 ## Dependency Installation Pattern
 

@@ -1,0 +1,93 @@
+#!/bin/bash
+set -euo pipefail
+
+DB_USER="${DATABASE_USER:-postgres}"
+DB_PASS="${DATABASE_PASSWORD:-postgres}"
+DB_URL="${DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/postgres}"
+
+# Parse database name from DATABASE_URL path component
+_after_scheme="${DB_URL#*://}"
+if [[ "$_after_scheme" == *"/"* ]]; then
+    _path="${_after_scheme#*/}"
+    DB_NAME="${_path%%\?*}"
+else
+    DB_NAME=""
+fi
+DB_NAME="${DB_NAME:-postgres}"
+
+PGDATA="/var/lib/postgresql/17/main"
+
+# Already running?
+if pg_isready -q 2>/dev/null; then
+    echo "PostgreSQL 17 is already running."
+    exit 0
+fi
+
+# Initialize cluster if data directory is missing (fallback — normally APT creates this at build time)
+if ! sudo -u postgres test -f "$PGDATA/PG_VERSION"; then
+    echo "Initializing PostgreSQL 17 cluster..."
+    sudo mkdir -p "$PGDATA" /etc/postgresql/17/main /var/log/postgresql
+    sudo chown postgres:postgres "$PGDATA" /etc/postgresql/17/main /var/log/postgresql
+    sudo -u postgres /usr/lib/postgresql/17/bin/initdb -D "$PGDATA" --auth-local=peer --auth-host=scram-sha-256
+    # Write complete pg_hba.conf for container use
+    sudo -u postgres tee "$PGDATA/pg_hba.conf" > /dev/null <<'PGEOF'
+# TYPE  DATABASE  USER  ADDRESS       METHOD
+local   all       all                 peer
+host    all       all   127.0.0.1/32  scram-sha-256
+host    all       all   ::1/128       scram-sha-256
+host    all       all   0.0.0.0/0     scram-sha-256
+host    all       all   ::/0          scram-sha-256
+PGEOF
+    # Configure listen_addresses
+    sudo -u postgres sed -i "s/^#\?listen_addresses.*/listen_addresses = '*'/" "$PGDATA/postgresql.conf"
+    # Create Debian cluster config so pg_ctlcluster works
+    sudo tee /etc/postgresql/17/main/postgresql.conf > /dev/null <<PGEOF
+# Minimal config for pg_ctlcluster — full config is in $PGDATA/postgresql.conf
+data_directory = '$PGDATA'
+PGEOF
+fi
+
+# Start PostgreSQL
+echo "Starting PostgreSQL 17..."
+sudo -u postgres pg_ctlcluster 17 main start
+
+# Wait for ready (up to 30 seconds)
+for i in $(seq 1 30); do
+    pg_isready -q 2>/dev/null && break
+    sleep 1
+done
+
+if ! pg_isready -q 2>/dev/null; then
+    echo "ERROR: PostgreSQL failed to start within 30 seconds."
+    echo "Check logs: /var/log/postgresql/postgresql-17-main.log"
+    exit 1
+fi
+
+# Create or update role
+if [ "$DB_USER" = "postgres" ]; then
+    # postgres role always exists — just set the password
+    echo "ALTER ROLE postgres WITH PASSWORD :'pass'" | sudo -u postgres psql -v pass="$DB_PASS"
+else
+    if ! echo "SELECT 1 FROM pg_roles WHERE rolname = :'u'" | sudo -u postgres psql -tA -v u="$DB_USER" | grep -q 1; then
+        echo "Creating role '$DB_USER'..."
+        sudo -u postgres createuser --login "$DB_USER"
+        echo "ALTER ROLE :\"u\" WITH PASSWORD :'pass'" | sudo -u postgres psql -v u="$DB_USER" -v pass="$DB_PASS"
+    fi
+fi
+
+# Create database if not using default 'postgres'
+if [ "$DB_NAME" != "postgres" ]; then
+    if ! echo "SELECT 1 FROM pg_database WHERE datname = :'d'" | sudo -u postgres psql -tA -v d="$DB_NAME" | grep -q 1; then
+        echo "Creating database '$DB_NAME'..."
+        sudo -u postgres createdb -O "$DB_USER" "$DB_NAME"
+    fi
+fi
+
+echo ""
+echo "PostgreSQL 17 is ready."
+echo "  User:     $DB_USER"
+echo "  Database: $DB_NAME"
+echo "  Port:     5432"
+# Mask password in URL for display
+_display_url=$(echo "$DB_URL" | sed 's|://[^:]*:[^@]*@|://***:***@|')
+echo "  URL:      $_display_url"

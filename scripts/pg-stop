@@ -1,0 +1,13 @@
+#!/bin/bash
+set -euo pipefail
+
+# Check if PostgreSQL is running
+if ! pg_isready -q 2>/dev/null; then
+    echo "PostgreSQL is not running."
+    exit 0
+fi
+
+echo "Stopping PostgreSQL 17..."
+sudo -u postgres pg_ctlcluster 17 main stop -- -m fast
+
+echo "PostgreSQL 17 stopped."
