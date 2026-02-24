@@ -10,7 +10,7 @@ A polyglot development container with Python, Go, and TypeScript/JavaScript tool
 | Go | 1.25 | native | `golangci-lint` |
 | TypeScript/JS | Bun | `bun` | ESLint, Prettier |
 
-Also includes: Git, GitHub CLI (`gh`), Google Cloud CLI (`gcloud`), AWS CLI (`aws`), kubectl, jq, vim, nano, Claude Code, claude-switch, OpenAI Codex CLI (`codex`), GitHub Copilot CLI (`copilot`).
+Also includes: Git, GitHub CLI (`gh`), Google Cloud CLI (`gcloud`), AWS CLI (`aws`), kubectl, PostgreSQL 17, jq, vim, nano, Claude Code, claude-switch, OpenAI Codex CLI (`codex`), GitHub Copilot CLI (`copilot`).
 
 ## Platform support
 
@@ -40,7 +40,7 @@ Add a `.devcontainer/devcontainer.json` to your project:
     "source=${localEnv:HOME}/.config/gcloud,target=/home/developer/.config/gcloud,type=bind"
   ],
   "postCreateCommand": "bash -c '[ -f requirements.txt ] && uv pip install --system -r requirements.txt; [ -f go.mod ] && go mod download; [ -f package.json ] && bun install; true'",
-  "forwardPorts": [3000, 5173, 8000, 8080]
+  "forwardPorts": [3000, 5173, 5432, 8000, 8080]
 }
 ```
 
@@ -60,12 +60,36 @@ On container creation, dependencies are installed automatically based on files p
 - `go.mod` → `go mod download`
 - `package.json` → `bun install`
 
+### Services
+
+Optional services are installed but not started automatically. Start them when needed.
+
+#### PostgreSQL 17
+
+Start and stop with:
+
+```bash
+pg-start   # Initialize (first run) and start PostgreSQL
+pg-stop    # Stop PostgreSQL
+```
+
+Configured via environment variables (set on the container via `docker run -e` or `containerEnv` in devcontainer.json):
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DATABASE_USER` | `postgres` | PostgreSQL role name |
+| `DATABASE_PASSWORD` | `postgres` | Role password |
+| `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/postgres` | Connection string for your application |
+
+`pg-start` creates the role and database from these variables on first run. Storage is ephemeral — data is lost when the container is removed.
+
 ### Forwarded ports
 
 | Port | Service |
 |------|---------|
 | 3000 | Frontend |
 | 5173 | Vite dev server |
+| 5432 | PostgreSQL |
 | 8000 | Backend API |
 | 8080 | General HTTP |
 

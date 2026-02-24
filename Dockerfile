@@ -43,6 +43,10 @@ RUN curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key | gpg --d
     chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg && \
     echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list
 
+# Install PostgreSQL 17 repository
+RUN curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/keyrings/postgresql.gpg && \
+    echo "deb [signed-by=/etc/apt/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list
+
 # Install Python 3.13 via deadsnakes PPA (not in Ubuntu 24.04 default repos)
 RUN add-apt-repository ppa:deadsnakes/ppa && \
     apt-get update && apt-get install -y \
@@ -52,7 +56,18 @@ RUN add-apt-repository ppa:deadsnakes/ppa && \
     gh \
     google-cloud-cli \
     kubectl \
+    postgresql-17 \
+    postgresql-client-17 \
     && rm -rf /var/lib/apt/lists/*
+
+# Configure PostgreSQL 17 for container use (listen on all interfaces, allow remote auth)
+RUN sed -i "s/^#listen_addresses.*/listen_addresses = '*'/" /etc/postgresql/17/main/postgresql.conf && \
+    echo "host all all 0.0.0.0/0 scram-sha-256" >> /etc/postgresql/17/main/pg_hba.conf && \
+    echo "host all all ::/0 scram-sha-256" >> /etc/postgresql/17/main/pg_hba.conf
+
+# Install PostgreSQL management scripts
+COPY scripts/pg-start scripts/pg-stop /usr/local/bin/
+RUN chmod +x /usr/local/bin/pg-start /usr/local/bin/pg-stop
 
 # Install AWS CLI v2
 RUN ARCH=$(uname -m) && \
@@ -120,6 +135,8 @@ RUN curl -sSL https://raw.githubusercontent.com/pilotso11/claude-switch/main/ins
 
 # Configure claude alias for convenience
 RUN echo 'alias claude="claude --dangerously-skip-permissions"' >> ~/.bashrc
+
+EXPOSE 5432
 
 # Create workspace directory
 WORKDIR /workspace
