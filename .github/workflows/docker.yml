@@ -50,4 +50,4 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           no-cache: ${{ github.event_name == 'schedule' }}
           cache-from: ${{ github.event_name != 'schedule' && 'type=gha' || '' }}
-          cache-to: ${{ github.event_name != 'schedule' && 'type=gha,mode=max' || '' }}
+          cache-to: type=gha,mode=max
