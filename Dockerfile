@@ -1,9 +1,12 @@
+# syntax=docker/dockerfile:1
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install base dependencies
-RUN apt-get update && apt-get install -y \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     git \
     curl \
     wget \
@@ -25,31 +28,31 @@ RUN apt-get update && apt-get install -y \
     tree \
     net-tools \
     iputils-ping \
-    traceroute \
-    && rm -rf /var/lib/apt/lists/*
+    traceroute
 
-# Install GitHub CLI
-RUN mkdir -p /etc/apt/keyrings && \
+# Set up all APT repositories in a single layer
+RUN mkdir -p /etc/apt/keyrings /usr/share/keyrings && \
+    # GitHub CLI
     wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null && \
     chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-
-# Install Google Cloud CLI
-RUN echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && \
-    wget -qO- https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg
-
-# Install kubectl
-RUN curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null && \
+    # Google Cloud CLI
+    wget -qO- https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee /etc/apt/sources.list.d/google-cloud-sdk.list > /dev/null && \
+    # kubectl
+    curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg && \
     chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg && \
-    echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list
+    echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list > /dev/null && \
+    # PostgreSQL 17
+    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/keyrings/postgresql.gpg && \
+    echo "deb [signed-by=/etc/apt/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
+    # Python 3.13 via deadsnakes PPA (not in Ubuntu 24.04 default repos)
+    add-apt-repository --no-update ppa:deadsnakes/ppa
 
-# Install PostgreSQL 17 repository
-RUN curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/keyrings/postgresql.gpg && \
-    echo "deb [signed-by=/etc/apt/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list
-
-# Install Python 3.13 via deadsnakes PPA (not in Ubuntu 24.04 default repos)
-RUN add-apt-repository ppa:deadsnakes/ppa && \
-    apt-get update && apt-get install -y \
+# Install all additional APT packages in one layer
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     python3.13 \
     python3.13-dev \
     python3-pip \
@@ -57,45 +60,39 @@ RUN add-apt-repository ppa:deadsnakes/ppa && \
     google-cloud-cli \
     kubectl \
     postgresql-17 \
-    postgresql-client-17 \
-    && rm -rf /var/lib/apt/lists/*
+    postgresql-client-17
 
 # Configure PostgreSQL 17 for container use (listen on all interfaces, allow remote auth)
+# and install management scripts
 RUN sed -i "s/^#listen_addresses.*/listen_addresses = '*'/" /etc/postgresql/17/main/postgresql.conf && \
     echo "host all all 0.0.0.0/0 scram-sha-256" >> /etc/postgresql/17/main/pg_hba.conf && \
     echo "host all all ::/0 scram-sha-256" >> /etc/postgresql/17/main/pg_hba.conf
-
-# Install PostgreSQL management scripts
 COPY scripts/pg-start scripts/pg-stop /usr/local/bin/
 RUN chmod +x /usr/local/bin/pg-start /usr/local/bin/pg-stop
 
 # Install AWS CLI v2
 RUN ARCH=$(uname -m) && \
-    if [ "$ARCH" = "x86_64" ]; then \
-        curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"; \
-    elif [ "$ARCH" = "aarch64" ]; then \
-        curl "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o "awscliv2.zip"; \
-    fi && \
-    unzip awscliv2.zip && \
-    ./aws/install && \
-    rm -rf awscliv2.zip aws
-
-# Set Python 3.13 as default
-RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.13 1 && \
-    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.13 1
-
-# Install uv to system path
-RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
+    if [ "$ARCH" = "x86_64" ]; then AWSARCH="x86_64"; else AWSARCH="aarch64"; fi && \
+    curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${AWSARCH}.zip" -o /tmp/awscliv2.zip && \
+    unzip -q /tmp/awscliv2.zip -d /tmp && \
+    /tmp/aws/install && \
+    rm -rf /tmp/awscliv2.zip /tmp/aws
 
 # Install Go 1.25 (latest patch) from official image
 COPY --from=golang:1.25 /usr/local/go /usr/local/go
 ENV PATH="/usr/local/go/bin:${PATH}"
 
+# Set Python 3.13 as default and install uv
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.13 1 && \
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.13 1 && \
+    curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
+
 # Install golangci-lint (latest version)
 RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /usr/local/bin
 
 # Install Python dev tools globally
-RUN uv pip install --system \
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --system \
     mypy \
     pytest \
     pytest-asyncio \
@@ -113,7 +110,6 @@ ENV PATH="/home/developer/.local/bin:/home/developer/.bun/bin:${GOPATH}/bin:${PA
 
 # Enable claude features
 ENV CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=true
-
 
 # Install Bun (includes Node.js/TypeScript tooling)
 RUN curl -fsSL https://bun.sh/install | bash
