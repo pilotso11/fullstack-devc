@@ -67,8 +67,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 RUN sed -i "s/^#listen_addresses.*/listen_addresses = '*'/" /etc/postgresql/17/main/postgresql.conf && \
     echo "host all all 0.0.0.0/0 scram-sha-256" >> /etc/postgresql/17/main/pg_hba.conf && \
     echo "host all all ::/0 scram-sha-256" >> /etc/postgresql/17/main/pg_hba.conf
-COPY scripts/pg-start scripts/pg-stop /usr/local/bin/
-RUN chmod +x /usr/local/bin/pg-start /usr/local/bin/pg-stop
+COPY --chmod=755 scripts/pg-start scripts/pg-stop /usr/local/bin/
 
 # Install AWS CLI v2
 RUN ARCH=$(uname -m) && \
