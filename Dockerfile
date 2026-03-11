@@ -81,6 +81,11 @@ RUN ARCH=$(uname -m) && \
 COPY --from=golang:1.25 /usr/local/go /usr/local/go
 ENV PATH="/usr/local/go/bin:${PATH}"
 
+# Install Node.js 22 LTS via NodeSource
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+    rm -rf /var/lib/apt/lists/*
+
 # Set Python 3.13 as default and install uv
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.13 1 && \
     update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.13 1 && \
@@ -97,6 +102,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     pytest-asyncio \
     pytest-cov \
     ruff
+
+# Install Playwright browser dependencies (Chromium)
+# These system libraries are needed for headless browser testing
+RUN npx playwright install-deps chromium
 
 # Create non-root developer user with passwordless sudo
 RUN useradd -m -s /bin/bash developer \
@@ -117,6 +126,9 @@ ENV CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=true
 
 # Install Bun (includes Node.js/TypeScript tooling)
 RUN curl -fsSL https://bun.sh/install | bash
+
+# Install Playwright Chromium browser for component testing
+RUN npx playwright install chromium
 
 # Install AI coding assistants via bun (npm compatible)
 RUN bun install -g @openai/codex @github/copilot
