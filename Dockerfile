@@ -102,6 +102,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 RUN useradd -m -s /bin/bash developer \
     && echo "developer ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
+# Pre-create directories that devcontainer features may populate as root.
+# This ensures correct ownership when features like Node.js write to ~/.npm.
+RUN mkdir -p /home/developer/.npm /home/developer/.cache \
+    && chown -R developer:developer /home/developer/.npm /home/developer/.cache
+
 USER developer
 ENV HOME=/home/developer
 ENV GOPATH="/home/developer/go"
