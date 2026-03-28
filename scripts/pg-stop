@@ -8,6 +8,6 @@ if ! pg_isready -q 2>/dev/null; then
 fi
 
 echo "Stopping PostgreSQL 17..."
-sudo -u postgres pg_ctlcluster 17 main stop -- -m fast
+sudo pg_ctlcluster 17 main stop -m fast
 
 echo "PostgreSQL 17 stopped."

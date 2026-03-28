@@ -28,7 +28,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     tree \
     net-tools \
     iputils-ping \
-    traceroute
+    traceroute \
+    fzf \
+    zsh \
+    man-db
 
 # Set up all APT repositories in a single layer
 RUN mkdir -p /etc/apt/keyrings /usr/share/keyrings && \
@@ -107,9 +110,20 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # These system libraries are needed for headless browser testing
 RUN npx playwright install-deps chromium
 
+# Install git-delta for better diff output
+ARG GIT_DELTA_VERSION=0.18.2
+RUN ARCH=$(dpkg --print-architecture) && \
+    wget -q "https://github.com/dandavison/delta/releases/download/${GIT_DELTA_VERSION}/git-delta_${GIT_DELTA_VERSION}_${ARCH}.deb" && \
+    dpkg -i "git-delta_${GIT_DELTA_VERSION}_${ARCH}.deb" && \
+    rm "git-delta_${GIT_DELTA_VERSION}_${ARCH}.deb"
+
+# Persistent shell history directory (mount a volume to /commandhistory to persist across rebuilds)
+RUN mkdir /commandhistory && touch /commandhistory/.bash_history /commandhistory/.zsh_history
+
 # Create non-root developer user with passwordless sudo
-RUN useradd -m -s /bin/bash developer \
-    && echo "developer ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+RUN useradd -m -s /bin/zsh developer \
+    && echo "developer ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers \
+    && chown -R developer:developer /commandhistory
 
 # Pre-create directories that devcontainer features may populate as root.
 # This ensures correct ownership when features like Node.js write to ~/.npm.
@@ -121,8 +135,26 @@ ENV HOME=/home/developer
 ENV GOPATH="/home/developer/go"
 ENV PATH="/home/developer/.local/bin:/home/developer/.bun/bin:${GOPATH}/bin:${PATH}"
 
-# Enable claude features
+# Set devcontainer marker and enable claude features
+ENV DEVCONTAINER=true
 ENV CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=true
+
+# Persistent history config
+ENV HISTFILE=/commandhistory/.zsh_history
+ENV SHELL=/bin/zsh
+
+# Set up zsh with oh-my-zsh, fzf, and persistent history
+ARG ZSH_IN_DOCKER_VERSION=1.2.0
+RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/v${ZSH_IN_DOCKER_VERSION}/zsh-in-docker.sh)" -- \
+    -p git \
+    -p fzf \
+    -a "export HISTFILE=/commandhistory/.zsh_history" \
+    -a "export HISTSIZE=10000" \
+    -a "export SAVEHIST=10000" \
+    -a "setopt SHARE_HISTORY" \
+    -a "[ -f /usr/share/doc/fzf/examples/key-bindings.zsh ] && source /usr/share/doc/fzf/examples/key-bindings.zsh" \
+    -a "[ -f /usr/share/doc/fzf/examples/completion.zsh ] && source /usr/share/doc/fzf/examples/completion.zsh" \
+    -x
 
 # Install Bun (includes Node.js/TypeScript tooling)
 RUN curl -fsSL https://bun.sh/install | bash
@@ -145,8 +177,15 @@ RUN curl -fsSL https://claude.ai/install.sh | bash
 # Install claude-switch (toggle between Claude API backends)
 RUN curl -sSL https://raw.githubusercontent.com/pilotso11/claude-switch/main/install.sh | bash
 
-# Configure claude alias for convenience
-RUN echo 'alias claude="claude --dangerously-skip-permissions"' >> ~/.bashrc
+# Configure claude alias and git-delta for convenience
+RUN echo 'alias claude="claude --dangerously-skip-permissions"' >> ~/.zshrc && \
+    echo 'alias claude="claude --dangerously-skip-permissions"' >> ~/.bashrc && \
+    git config --global core.pager delta && \
+    git config --global interactive.diffFilter "delta --color-only" && \
+    git config --global delta.navigate true && \
+    git config --global delta.side-by-side true && \
+    git config --global merge.conflictstyle diff3 && \
+    git config --global diff.colorMoved default
 
 EXPOSE 5432
 
