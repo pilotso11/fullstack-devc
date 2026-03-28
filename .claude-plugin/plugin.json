@@ -1,0 +1,6 @@
+{
+  "name": "fullstack-devc",
+  "version": "0.1.0",
+  "description": "Commands for the fullstack-devc development container image",
+  "repository": "https://github.com/pilotso11/fullstack-devc"
+}
