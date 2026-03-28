@@ -16,6 +16,7 @@ fi
 DB_NAME="${DB_NAME:-postgres}"
 
 PGDATA="/var/lib/postgresql/17/main"
+PG_CONF="/etc/postgresql/17/main"
 
 # Already running?
 if pg_isready -q 2>/dev/null; then
@@ -23,14 +24,16 @@ if pg_isready -q 2>/dev/null; then
     exit 0
 fi
 
-# Initialize cluster if data directory is missing (fallback — normally APT creates this at build time)
+# Initialize cluster if data directory is missing
 if ! sudo -u postgres test -f "$PGDATA/PG_VERSION"; then
     echo "Initializing PostgreSQL 17 cluster..."
-    sudo mkdir -p "$PGDATA" /etc/postgresql/17/main /var/log/postgresql
-    sudo chown postgres:postgres "$PGDATA" /etc/postgresql/17/main /var/log/postgresql
-    sudo -u postgres /usr/lib/postgresql/17/bin/initdb -D "$PGDATA" --auth-local=peer --auth-host=scram-sha-256
-    # Write complete pg_hba.conf for container use
-    sudo -u postgres tee "$PGDATA/pg_hba.conf" > /dev/null <<'PGEOF'
+    sudo mkdir -p "$PGDATA" "$PG_CONF" /var/log/postgresql
+    sudo chown postgres:postgres "$PGDATA" "$PG_CONF" /var/log/postgresql
+    sudo -u postgres /usr/lib/postgresql/17/bin/initdb -D "$PGDATA" \
+        --auth-local=peer --auth-host=scram-sha-256
+
+    # Write pg_hba.conf for container use
+    sudo tee "$PGDATA/pg_hba.conf" > /dev/null <<'PGEOF'
 # TYPE  DATABASE  USER  ADDRESS       METHOD
 local   all       all                 peer
 host    all       all   127.0.0.1/32  scram-sha-256
@@ -38,18 +41,20 @@ host    all       all   ::1/128       scram-sha-256
 host    all       all   0.0.0.0/0     scram-sha-256
 host    all       all   ::/0          scram-sha-256
 PGEOF
+    sudo chown postgres:postgres "$PGDATA/pg_hba.conf"
+
     # Configure listen_addresses
     sudo -u postgres sed -i "s/^#\?listen_addresses.*/listen_addresses = '*'/" "$PGDATA/postgresql.conf"
-    # Create Debian cluster config so pg_ctlcluster works
-    sudo tee /etc/postgresql/17/main/postgresql.conf > /dev/null <<PGEOF
-# Minimal config for pg_ctlcluster — full config is in $PGDATA/postgresql.conf
+
+    # Point pg_ctlcluster at the data directory
+    sudo tee "$PG_CONF/postgresql.conf" > /dev/null <<PGEOF
 data_directory = '$PGDATA'
 PGEOF
 fi
 
 # Start PostgreSQL
 echo "Starting PostgreSQL 17..."
-sudo -u postgres pg_ctlcluster 17 main start
+sudo pg_ctlcluster 17 main start
 
 # Wait for ready (up to 30 seconds)
 for i in $(seq 1 30); do
@@ -63,21 +68,24 @@ if ! pg_isready -q 2>/dev/null; then
     exit 1
 fi
 
-# Create or update role
+# Create or update role using escaped SQL (avoids psql variable interpolation warnings)
+_escaped_pass=$(printf '%s' "$DB_PASS" | sed "s/'/''/g")
+
 if [ "$DB_USER" = "postgres" ]; then
-    # postgres role always exists — just set the password
-    echo "ALTER ROLE postgres WITH PASSWORD :'pass'" | sudo -u postgres psql -v pass="$DB_PASS"
+    sudo -u postgres psql -c "ALTER ROLE postgres WITH PASSWORD '${_escaped_pass}'" 2>/dev/null
 else
-    if ! echo "SELECT 1 FROM pg_roles WHERE rolname = :'u'" | sudo -u postgres psql -tA -v u="$DB_USER" | grep -q 1; then
+    _role_exists=$(sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname = '$(printf '%s' "$DB_USER" | sed "s/'/''/g")'")
+    if [ "$_role_exists" != "1" ]; then
         echo "Creating role '$DB_USER'..."
         sudo -u postgres createuser --login "$DB_USER"
-        echo "ALTER ROLE :\"u\" WITH PASSWORD :'pass'" | sudo -u postgres psql -v u="$DB_USER" -v pass="$DB_PASS"
     fi
+    sudo -u postgres psql -c "ALTER ROLE \"$DB_USER\" WITH PASSWORD '${_escaped_pass}'" 2>/dev/null
 fi
 
 # Create database if not using default 'postgres'
 if [ "$DB_NAME" != "postgres" ]; then
-    if ! echo "SELECT 1 FROM pg_database WHERE datname = :'d'" | sudo -u postgres psql -tA -v d="$DB_NAME" | grep -q 1; then
+    _db_exists=$(sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname = '$(printf '%s' "$DB_NAME" | sed "s/'/''/g")'")
+    if [ "$_db_exists" != "1" ]; then
         echo "Creating database '$DB_NAME'..."
         sudo -u postgres createdb -O "$DB_USER" "$DB_NAME"
     fi
