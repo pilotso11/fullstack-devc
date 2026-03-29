@@ -1,0 +1,16 @@
+{
+  "name": "fullstack-devc",
+  "description": "Claude Code plugin for the fullstack-devc development container",
+  "owner": {
+    "name": "pilotso11",
+    "url": "https://github.com/pilotso11"
+  },
+  "plugins": [
+    {
+      "name": "fullstack-devc",
+      "description": "Provides /devcontainer command to generate devcontainer.json configurations using the fullstack-devc image",
+      "version": "0.1.0",
+      "source": "./"
+    }
+  ]
+}

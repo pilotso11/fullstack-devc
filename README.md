@@ -104,6 +104,36 @@ Configured via environment variables (set on the container via `docker run -e` o
 
 The image is rebuilt every Monday at 02:00 UTC with no layer cache, ensuring the latest Ubuntu security patches, Go patch release, python patches, uv, and Claude Code update are always included in `latest`.
 
+## Claude Code Plugin
+
+This repo includes a Claude Code plugin that provides a `/devcontainer` slash command. When invoked in any project, it generates a `.devcontainer/devcontainer.json` tailored to the project's detected language stack.
+
+### Installing the plugin
+
+Add this repo as a plugin marketplace, then install the plugin:
+
+```bash
+claude plugin marketplace add https://github.com/pilotso11/fullstack-devc
+claude plugin install fullstack-devc
+```
+
+Or from a local clone:
+
+```bash
+git clone https://github.com/pilotso11/fullstack-devc.git
+claude plugin marketplace add /path/to/fullstack-devc
+claude plugin install fullstack-devc
+```
+
+Restart Claude Code after installing. The `/devcontainer` command will be available in any project.
+
+### What `/devcontainer` does
+
+- Detects your project's language stack (Go, TypeScript, Python, Rust, or fullstack)
+- Asks about gcloud mounts, port forwarding, and environment variables
+- Generates a `.devcontainer/devcontainer.json` with appropriate VS Code extensions, mounts (Claude, GH CLI, SSH agent), and settings
+- Optionally commits and pushes the config to main
+
 ## Building
 
 ```bash

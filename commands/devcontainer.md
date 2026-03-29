@@ -103,7 +103,7 @@ Create `.devcontainer/devcontainer.json` with this structure. Use the gathered i
 
   "overrideCommand": false,
 
-  "postCreateCommand": "ssh-keyscan github.com >> /home/developer/.ssh/known_hosts 2>/dev/null; true",
+  "postCreateCommand": "sudo mkdir -p /home/developer/.ssh && sudo chown developer:developer /home/developer/.ssh && ssh-keyscan github.com >> /home/developer/.ssh/known_hosts 2>/dev/null; true",
   "postStartCommand": "sudo chown -R developer:developer /home/developer/.claude /home/developer/.config/gh 2>/dev/null; true",
 
   "remoteUser": "developer"
