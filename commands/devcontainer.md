@@ -104,7 +104,7 @@ Create `.devcontainer/devcontainer.json` with this structure. Use the gathered i
   "overrideCommand": false,
 
   "postCreateCommand": "sudo mkdir -p /home/developer/.ssh && sudo chown developer:developer /home/developer/.ssh && ssh-keyscan github.com >> /home/developer/.ssh/known_hosts 2>/dev/null; true",
-  "postStartCommand": "sudo chown -R developer:developer /home/developer/.claude /home/developer/.config/gh 2>/dev/null; true",
+  "postStartCommand": "sudo chown -R developer:developer /home/developer/.claude /home/developer/.config/gh /home/developer/.ssh 2>/dev/null; true",
 
   "remoteUser": "developer"
 }
@@ -159,3 +159,16 @@ Print a summary of what was created:
 - Ports forwarded (if any)
 - Environment variables set (if any)
 - Whether it was pushed to main
+
+Then print a **First use** note:
+```
+**First use:** On macOS, Claude Code and GitHub CLI credentials are stored in the
+system Keychain and don't transfer into the container. The first time you open
+the devcontainer, run:
+
+  claude login
+  gh auth login
+
+These write credentials to the bind-mounted ~/.claude and ~/.config/gh directories,
+so you only need to do this once per machine.
+```
