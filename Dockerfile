@@ -1,12 +1,6 @@
 # syntax=docker/dockerfile:1
 FROM ubuntu:24.04
 
-# Set INCLUDE_POSTGRES=true to add PostgreSQL 17 to the image
-ARG INCLUDE_POSTGRES=false
-
-# Set INCLUDE_CLOUD=true to add Google Cloud CLI, kubectl, and AWS CLI v2
-ARG INCLUDE_CLOUD=false
-
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install base dependencies
@@ -48,16 +42,6 @@ RUN mkdir -p /etc/apt/keyrings /usr/share/keyrings && \
     curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg && \
     chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg && \
     echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list > /dev/null && \
-    # Google Cloud CLI (only when INCLUDE_CLOUD=true)
-    if [ "$INCLUDE_CLOUD" = "true" ]; then \
-        curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg && \
-        echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee /etc/apt/sources.list.d/google-cloud-sdk.list > /dev/null; \
-    fi && \
-    # PostgreSQL 17 (only when INCLUDE_POSTGRES=true)
-    if [ "$INCLUDE_POSTGRES" = "true" ]; then \
-        curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/keyrings/postgresql.gpg && \
-        echo "deb [signed-by=/etc/apt/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list; \
-    fi && \
     # Python 3.13 via deadsnakes PPA (not in Ubuntu 24.04 default repos)
     add-apt-repository --no-update ppa:deadsnakes/ppa
 
@@ -69,33 +53,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     python3.13-dev \
     python3-pip \
     gh \
-    kubectl && \
-    if [ "$INCLUDE_CLOUD" = "true" ]; then \
-        apt-get install -y --no-install-recommends google-cloud-cli; \
-    fi && \
-    if [ "$INCLUDE_POSTGRES" = "true" ]; then \
-        apt-get install -y --no-install-recommends postgresql-17 postgresql-client-17; \
-    fi
-
-# Configure PostgreSQL 17 and install management scripts (only when INCLUDE_POSTGRES=true)
-RUN --mount=type=bind,source=scripts,target=/tmp/scripts \
-    if [ "$INCLUDE_POSTGRES" = "true" ]; then \
-        sed -i "s/^#listen_addresses.*/listen_addresses = '*'/" /etc/postgresql/17/main/postgresql.conf && \
-        echo "host all all 0.0.0.0/0 scram-sha-256" >> /etc/postgresql/17/main/pg_hba.conf && \
-        echo "host all all ::/0 scram-sha-256" >> /etc/postgresql/17/main/pg_hba.conf && \
-        cp /tmp/scripts/pg-start /tmp/scripts/pg-stop /usr/local/bin/ && \
-        chmod 755 /usr/local/bin/pg-start /usr/local/bin/pg-stop; \
-    fi
-
-# Install AWS CLI v2 (only when INCLUDE_CLOUD=true)
-RUN if [ "$INCLUDE_CLOUD" = "true" ]; then \
-    ARCH=$(uname -m) && \
-    if [ "$ARCH" = "x86_64" ]; then AWSARCH="x86_64"; else AWSARCH="aarch64"; fi && \
-    curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${AWSARCH}.zip" -o /tmp/awscliv2.zip && \
-    unzip -q /tmp/awscliv2.zip -d /tmp && \
-    /tmp/aws/install && \
-    rm -rf /tmp/awscliv2.zip /tmp/aws; \
-fi
+    kubectl
 
 # Install Go 1.25 (latest patch) from official image
 COPY --from=golang:1.25 /usr/local/go /usr/local/go

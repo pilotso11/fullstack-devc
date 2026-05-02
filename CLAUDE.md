@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a **Docker-based polyglot development container** definition. The "product" is the container image itself — changes here affect the toolchain available to all projects that use this container.
 
-Published to DockerHub as `pilotso11/fullstack-devc` via GitHub Actions on push to `main` or semver tags. Two variants are built: the base image and a `-pg` variant with PostgreSQL 17.
+Published to DockerHub as `pilotso11/fullstack-devc` via GitHub Actions on push to `main` or semver tags. Three variants are built: the base image, a `-pg` variant with PostgreSQL 17, and a `-cloud` variant with Google Cloud CLI and AWS CLI v2.
 
 ## Build Commands
 
@@ -14,14 +14,17 @@ Published to DockerHub as `pilotso11/fullstack-devc` via GitHub Actions on push 
 # Build and push multi-platform base image (requires Docker Buildx and DockerHub login)
 make docker
 
-# Build and push multi-platform postgres variant
+# Build and push multi-platform postgres variant (requires base already pushed)
 make docker-pg
+
+# Build and push multi-platform cloud variant (requires base already pushed)
+make docker-cloud
 
 # Local build only (no push)
 docker buildx build --platform linux/amd64,linux/arm64 -t pilotso11/fullstack-devc:dev .
 
-# Local build only with PostgreSQL
-docker buildx build --platform linux/amd64,linux/arm64 --build-arg INCLUDE_POSTGRES=true -t pilotso11/fullstack-devc:dev-pg .
+# Local build only with PostgreSQL (requires base already pushed as pilotso11/fullstack-devc:dev)
+docker buildx build --platform linux/amd64,linux/arm64 -f Dockerfile.pg --build-arg BASE_IMAGE=pilotso11/fullstack-devc:dev -t pilotso11/fullstack-devc:dev-pg .
 
 # Build for local architecture only (faster for testing)
 docker build -t fullstack-devc:local .
