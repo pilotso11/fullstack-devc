@@ -23,10 +23,15 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Start local image registry
+        run: docker run -d -p 5000:5000 --name registry registry:2
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: network=host
 
-      - name: Docker meta
+      - name: Docker meta (base)
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -40,14 +45,79 @@ jobs:
             type=sha
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push
+      - name: Docker meta (postgres variant)
+        id: meta-pg
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ github.repository }}
+          flavor: |
+            suffix=-pg,onlatest=true
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Docker meta (cloud variant)
+        id: meta-cloud
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ github.repository }}
+          flavor: |
+            suffix=-cloud,onlatest=true
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push (base)
         uses: docker/build-push-action@v6
         with:
           platforms: linux/amd64,linux/arm64
           context: .
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
+          push: true
+          tags: |
+            localhost:5000/base:latest
+            ${{ github.event_name != 'pull_request' && steps.meta.outputs.tags || '' }}
           labels: ${{ steps.meta.outputs.labels }}
           no-cache: ${{ github.event_name == 'schedule' }}
-          cache-from: ${{ github.event_name != 'schedule' && 'type=gha' || '' }}
-          cache-to: type=gha,mode=max
+          cache-from: ${{ github.event_name != 'schedule' && 'type=gha,scope=base' || '' }}
+          cache-to: type=gha,mode=max,scope=base
+
+      - name: Build and push (postgres variant)
+        uses: docker/build-push-action@v6
+        with:
+          file: Dockerfile.pg
+          platforms: linux/amd64,linux/arm64
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          build-args: |
+            BASE_IMAGE=localhost:5000/base:latest
+          tags: ${{ steps.meta-pg.outputs.tags }}
+          labels: ${{ steps.meta-pg.outputs.labels }}
+          no-cache: ${{ github.event_name == 'schedule' }}
+          cache-from: ${{ github.event_name != 'schedule' && 'type=gha,scope=pg' || '' }}
+          cache-to: type=gha,mode=max,scope=pg
+
+      - name: Build and push (cloud variant)
+        uses: docker/build-push-action@v6
+        with:
+          file: Dockerfile.cloud
+          platforms: linux/amd64,linux/arm64
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          build-args: |
+            BASE_IMAGE=localhost:5000/base:latest
+          tags: ${{ steps.meta-cloud.outputs.tags }}
+          labels: ${{ steps.meta-cloud.outputs.labels }}
+          no-cache: ${{ github.event_name == 'schedule' }}
+          cache-from: ${{ github.event_name != 'schedule' && 'type=gha,scope=cloud' || '' }}
+          cache-to: type=gha,mode=max,scope=cloud
+

@@ -1,0 +1,35 @@
+# syntax=docker/dockerfile:1
+# PostgreSQL 17 variant — extends the base devcontainer image
+ARG BASE_IMAGE=pilotso11/fullstack-devc:latest
+FROM ${BASE_IMAGE}
+
+USER root
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Add PostgreSQL 17 APT repository
+RUN mkdir -p /etc/apt/keyrings && \
+    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/keyrings/postgresql.gpg && \
+    echo "deb [signed-by=/etc/apt/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list
+
+# Install PostgreSQL 17
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
+    postgresql-17 \
+    postgresql-client-17 && \
+    rm -rf /var/lib/apt/lists/*
+
+# Configure PostgreSQL and install management scripts
+RUN --mount=type=bind,source=scripts,target=/tmp/scripts \
+    sed -i "s/^#listen_addresses.*/listen_addresses = '*'/" /etc/postgresql/17/main/postgresql.conf && \
+    echo "host all all 0.0.0.0/0 scram-sha-256" >> /etc/postgresql/17/main/pg_hba.conf && \
+    echo "host all all ::/0 scram-sha-256" >> /etc/postgresql/17/main/pg_hba.conf && \
+    cp /tmp/scripts/pg-start /tmp/scripts/pg-stop /usr/local/bin/ && \
+    chmod 755 /usr/local/bin/pg-start /usr/local/bin/pg-stop
+
+USER developer
+
+WORKDIR /workspace
+
+CMD ["sleep", "infinity"]

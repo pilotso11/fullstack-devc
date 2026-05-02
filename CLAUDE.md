@@ -6,16 +6,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a **Docker-based polyglot development container** definition. The "product" is the container image itself — changes here affect the toolchain available to all projects that use this container.
 
-Published to DockerHub as `pilotso11/fullstack-devc` via GitHub Actions on push to `main` or semver tags.
+Published to DockerHub as `pilotso11/fullstack-devc` via GitHub Actions on push to `main` or semver tags. Three variants are built: the base image, a `-pg` variant with PostgreSQL 17, and a `-cloud` variant with Google Cloud CLI and AWS CLI v2.
 
 ## Build Commands
 
 ```bash
-# Build and push multi-platform image (requires Docker Buildx and DockerHub login)
+# Build and push multi-platform base image (requires Docker Buildx and DockerHub login)
 make docker
+
+# Build and push multi-platform postgres variant (requires base already pushed)
+make docker-pg
+
+# Build and push multi-platform cloud variant (requires base already pushed)
+make docker-cloud
 
 # Local build only (no push)
 docker buildx build --platform linux/amd64,linux/arm64 -t pilotso11/fullstack-devc:dev .
+
+# Local build only with PostgreSQL (requires base already pushed as pilotso11/fullstack-devc:dev)
+docker buildx build --platform linux/amd64,linux/arm64 -f Dockerfile.pg --build-arg BASE_IMAGE=pilotso11/fullstack-devc:dev -t pilotso11/fullstack-devc:dev-pg .
 
 # Build for local architecture only (faster for testing)
 docker build -t fullstack-devc:local .
@@ -44,7 +53,7 @@ Claude Code is also pre-installed at `/root/.claude/bin`.
 - `5173` — Vite dev server
 - `8000` — Backend API
 - `8080` — General HTTP
-- `5432` — PostgreSQL (optional, start with `pg-start`)
+- `5432` — PostgreSQL (only in `-pg` variant, start with `pg-start`)
 
 ## Dependency Installation Pattern
 
@@ -61,8 +70,8 @@ This means the container is project-agnostic — drop in any polyglot project an
 ## CI/CD
 
 `.github/docker.yml` builds and pushes on:
-- Push to `main` → tagged as branch name + SHA
-- Semver tags (`v*`) → tagged as `major.minor.patch`, `major.minor`, `major`
+- Push to `main` → tagged as branch name + SHA (both base and `-pg` variants)
+- Semver tags (`v*`) → tagged as `major.minor.patch`, `major.minor`, `major` (plus `-pg` counterparts)
 - PRs → build only, no push
 
 Requires `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` secrets in the GitHub repo.

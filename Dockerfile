@@ -9,7 +9,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
     git \
     curl \
-    wget \
     build-essential \
     ca-certificates \
     gnupg \
@@ -36,53 +35,32 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # Set up all APT repositories in a single layer
 RUN mkdir -p /etc/apt/keyrings /usr/share/keyrings && \
     # GitHub CLI
-    wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null && \
+    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null && \
     chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg && \
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null && \
-    # Google Cloud CLI
-    wget -qO- https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg && \
-    echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee /etc/apt/sources.list.d/google-cloud-sdk.list > /dev/null && \
-    # kubectl
+    # kubectl (always included — small binary, useful with any cluster)
     curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg && \
     chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg && \
-    echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list > /dev/null && \
-    # PostgreSQL 17
-    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/keyrings/postgresql.gpg && \
-    echo "deb [signed-by=/etc/apt/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
-    # Python 3.13 via deadsnakes PPA (not in Ubuntu 24.04 default repos)
-    add-apt-repository --no-update ppa:deadsnakes/ppa
+    echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list > /dev/null
 
 # Install all additional APT packages in one layer
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
-    python3.13 \
-    python3.13-dev \
     python3-pip \
     gh \
-    google-cloud-cli \
-    kubectl \
-    postgresql-17 \
-    postgresql-client-17
-
-# Configure PostgreSQL 17 for container use (listen on all interfaces, allow remote auth)
-# and install management scripts
-RUN sed -i "s/^#listen_addresses.*/listen_addresses = '*'/" /etc/postgresql/17/main/postgresql.conf && \
-    echo "host all all 0.0.0.0/0 scram-sha-256" >> /etc/postgresql/17/main/pg_hba.conf && \
-    echo "host all all ::/0 scram-sha-256" >> /etc/postgresql/17/main/pg_hba.conf
-COPY --chmod=755 scripts/pg-start scripts/pg-stop /usr/local/bin/
-
-# Install AWS CLI v2
-RUN ARCH=$(uname -m) && \
-    if [ "$ARCH" = "x86_64" ]; then AWSARCH="x86_64"; else AWSARCH="aarch64"; fi && \
-    curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${AWSARCH}.zip" -o /tmp/awscliv2.zip && \
-    unzip -q /tmp/awscliv2.zip -d /tmp && \
-    /tmp/aws/install && \
-    rm -rf /tmp/awscliv2.zip /tmp/aws
+    kubectl
 
 # Install Go 1.25 (latest patch) from official image
 COPY --from=golang:1.25 /usr/local/go /usr/local/go
 ENV PATH="/usr/local/go/bin:${PATH}"
+
+# Install Python 3.13 from official image (no PPA needed, cross-platform compatible)
+COPY --from=python:3.13 /usr/local/bin/python3.13 /usr/local/bin/python3.13
+COPY --from=python:3.13 /usr/local/lib/python3.13 /usr/local/lib/python3.13
+COPY --from=python:3.13 /usr/local/include/python3.13 /usr/local/include/python3.13
+COPY --from=python:3.13 /usr/local/lib/libpython3.13.so.1.0 /usr/local/lib/libpython3.13.so.1.0
+RUN ln -sf libpython3.13.so.1.0 /usr/local/lib/libpython3.13.so && ldconfig
 
 # Install Node.js 22 LTS via NodeSource
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
@@ -90,12 +68,18 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
     rm -rf /var/lib/apt/lists/*
 
 # Set Python 3.13 as default and install uv
-RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.13 1 && \
-    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.13 1 && \
+RUN update-alternatives --install /usr/bin/python python /usr/local/bin/python3.13 1 && \
+    update-alternatives --install /usr/bin/python3 python3 /usr/local/bin/python3.13 1 && \
     curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
 
-# Install golangci-lint (latest version)
-RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /usr/local/bin
+# Install golangci-lint (pinned version, direct download — avoids install.sh sbom checksum bug)
+ARG GOLANGCI_LINT_VERSION=2.12.1
+RUN ARCH=$(dpkg --print-architecture) && \
+    curl -fsSLo /tmp/golangci-lint.tar.gz \
+      "https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_LINT_VERSION}/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-${ARCH}.tar.gz" && \
+    tar -xzf /tmp/golangci-lint.tar.gz -C /tmp && \
+    mv "/tmp/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-${ARCH}/golangci-lint" /usr/local/bin/golangci-lint && \
+    rm -rf /tmp/golangci-lint.tar.gz "/tmp/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-${ARCH}"
 
 # Install Python dev tools globally
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -113,7 +97,7 @@ RUN npx playwright install-deps chromium
 # Install git-delta for better diff output
 ARG GIT_DELTA_VERSION=0.18.2
 RUN ARCH=$(dpkg --print-architecture) && \
-    wget -q "https://github.com/dandavison/delta/releases/download/${GIT_DELTA_VERSION}/git-delta_${GIT_DELTA_VERSION}_${ARCH}.deb" && \
+    curl -fsSLo "git-delta_${GIT_DELTA_VERSION}_${ARCH}.deb" "https://github.com/dandavison/delta/releases/download/${GIT_DELTA_VERSION}/git-delta_${GIT_DELTA_VERSION}_${ARCH}.deb" && \
     dpkg -i "git-delta_${GIT_DELTA_VERSION}_${ARCH}.deb" && \
     rm "git-delta_${GIT_DELTA_VERSION}_${ARCH}.deb"
 
@@ -145,7 +129,7 @@ ENV SHELL=/bin/zsh
 
 # Set up zsh with oh-my-zsh, fzf, and persistent history
 ARG ZSH_IN_DOCKER_VERSION=1.2.0
-RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/v${ZSH_IN_DOCKER_VERSION}/zsh-in-docker.sh)" -- \
+RUN sh -c "$(curl -fsSL https://github.com/deluan/zsh-in-docker/releases/download/v${ZSH_IN_DOCKER_VERSION}/zsh-in-docker.sh)" -- \
     -p git \
     -p fzf \
     -a "export HISTFILE=/commandhistory/.zsh_history" \
@@ -186,8 +170,6 @@ RUN echo 'alias claude="claude --dangerously-skip-permissions"' >> ~/.zshrc && \
     git config --global delta.side-by-side true && \
     git config --global merge.conflictstyle diff3 && \
     git config --global diff.colorMoved default
-
-EXPOSE 5432
 
 # Create workspace directory
 WORKDIR /workspace

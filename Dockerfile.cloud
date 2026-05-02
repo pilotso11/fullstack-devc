@@ -1,0 +1,34 @@
+# syntax=docker/dockerfile:1
+# Cloud variant — extends the base devcontainer image with Google Cloud CLI and AWS CLI v2
+ARG BASE_IMAGE=pilotso11/fullstack-devc:latest
+FROM ${BASE_IMAGE}
+
+USER root
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Add Google Cloud CLI APT repository
+RUN mkdir -p /usr/share/keyrings && \
+    curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee /etc/apt/sources.list.d/google-cloud-sdk.list > /dev/null
+
+# Install Google Cloud CLI
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
+    google-cloud-cli && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install AWS CLI v2
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then AWSARCH="x86_64"; else AWSARCH="aarch64"; fi && \
+    curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${AWSARCH}.zip" -o /tmp/awscliv2.zip && \
+    unzip -q /tmp/awscliv2.zip -d /tmp && \
+    /tmp/aws/install && \
+    rm -rf /tmp/awscliv2.zip /tmp/aws
+
+USER developer
+
+WORKDIR /workspace
+
+CMD ["sleep", "infinity"]

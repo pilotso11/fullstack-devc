@@ -10,7 +10,11 @@ A polyglot development container with Python, Go, and TypeScript/JavaScript tool
 | Go | 1.25 | native | `golangci-lint` |
 | TypeScript/JS | Bun | `bun` | ESLint, Prettier |
 
-Also includes: Git, GitHub CLI (`gh`), Google Cloud CLI (`gcloud`), AWS CLI (`aws`), kubectl, PostgreSQL 17, jq, vim, nano, Claude Code, claude-switch, OpenAI Codex CLI (`codex`), GitHub Copilot CLI (`copilot`).
+Also includes: Git, GitHub CLI (`gh`), kubectl, jq, vim, nano, Claude Code, claude-switch, OpenAI Codex CLI (`codex`), GitHub Copilot CLI (`copilot`).
+
+Google Cloud CLI (`gcloud`), AWS CLI (`aws`), and kubectl are available in the `-cloud` image variant.
+
+PostgreSQL 17 is available as a separate image variant — see [Image variants](#image-variants) below.
 
 ## Platform support
 
@@ -62,9 +66,9 @@ On container creation, dependencies are installed automatically based on files p
 
 ### Services
 
-Optional services are installed but not started automatically. Start them when needed.
+PostgreSQL 17 is available in the `-pg` image variant. It is not started automatically — start it when needed.
 
-#### PostgreSQL 17
+#### PostgreSQL 17 (requires `-pg` variant)
 
 Start and stop with:
 
@@ -93,14 +97,34 @@ Configured via environment variables (set on the container via `docker run -e` o
 | 8000 | Backend API |
 | 8080 | General HTTP |
 
+## Image variants
+
+Three image variants are published:
+
+| Variant | Tag suffix | PostgreSQL | gcloud / AWS CLI |
+|---------|-----------|------------|-----------------|
+| Base (default) | *(none)* | ✗ | ✗ |
+| Cloud | `-cloud` | ✗ | ✓ |
+| Postgres | `-pg` | ✓ | ✗ |
+
+Use the base image (`pilotso11/fullstack-devc:latest`) for most projects — it includes kubectl for managing any cluster. Use the `-cloud` variant when you additionally need Google Cloud CLI or AWS CLI. Use the `-pg` variant when you need a bundled PostgreSQL 17 server.
+
 ## Image tags
 
 | Tag | Source |
 |-----|--------|
-| `latest` | Latest build from `main` or weekly scheduled rebuild |
+| `latest` | Latest build from `main` or weekly scheduled rebuild (base, includes kubectl) |
+| `latest-cloud` | Latest build from `main` or weekly scheduled rebuild (with gcloud/AWS CLI) |
+| `latest-pg` | Latest build from `main` or weekly scheduled rebuild (with PostgreSQL 17) |
 | `main` | Most recent push to `main` |
+| `main-cloud` | Most recent push to `main` (with gcloud/AWS CLI) |
+| `main-pg` | Most recent push to `main` (with PostgreSQL 17) |
 | `1.2.3` / `1.2` / `1` | Semver release from a `v*` git tag |
+| `1.2.3-cloud` / `1.2-cloud` / `1-cloud` | Semver release with gcloud/AWS CLI |
+| `1.2.3-pg` / `1.2-pg` / `1-pg` | Semver release with PostgreSQL 17 |
 | `sha-<hash>` | Specific commit |
+| `sha-<hash>-cloud` | Specific commit with gcloud/AWS CLI |
+| `sha-<hash>-pg` | Specific commit with PostgreSQL 17 |
 
 The image is rebuilt every Monday at 02:00 UTC with no layer cache, ensuring the latest Ubuntu security patches, Go patch release, python patches, uv, and Claude Code update are always included in `latest`.
 
@@ -137,9 +161,21 @@ Restart Claude Code after installing. The `/devcontainer` command will be availa
 ## Building
 
 ```bash
-# Build and push multi-platform image
+# Build and push multi-platform base image (no PostgreSQL, no cloud CLIs)
 make docker
 
-# Local build only
+# Build and push multi-platform cloud variant (gcloud, kubectl, AWS CLI)
+make docker-cloud
+
+# Build and push multi-platform postgres variant
+make docker-pg
+
+# Local build only (base)
 docker build -t fullstack-devc:local .
+
+# Local build only (cloud variant)
+docker build --build-arg INCLUDE_CLOUD=true -t fullstack-devc:local-cloud .
+
+# Local build only (postgres variant)
+docker build --build-arg INCLUDE_POSTGRES=true -t fullstack-devc:local-pg .
 ```
