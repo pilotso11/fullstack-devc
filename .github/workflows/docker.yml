@@ -56,6 +56,22 @@ jobs:
             type=sha
             type=raw,value=latest,enable={{is_default_branch}}
 
+      - name: Docker meta (cloud variant)
+        id: meta-cloud
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ github.repository }}
+          flavor: |
+            suffix=-cloud,onlatest=true
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
       - name: Build and push (base)
         uses: docker/build-push-action@v6
         with:
@@ -81,3 +97,17 @@ jobs:
           no-cache: ${{ github.event_name == 'schedule' }}
           cache-from: ${{ github.event_name != 'schedule' && 'type=gha,scope=pg' || '' }}
           cache-to: type=gha,mode=max,scope=pg
+
+      - name: Build and push (cloud variant)
+        uses: docker/build-push-action@v6
+        with:
+          platforms: linux/amd64,linux/arm64
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          build-args: |
+            INCLUDE_CLOUD=true
+          tags: ${{ steps.meta-cloud.outputs.tags }}
+          labels: ${{ steps.meta-cloud.outputs.labels }}
+          no-cache: ${{ github.event_name == 'schedule' }}
+          cache-from: ${{ github.event_name != 'schedule' && 'type=gha,scope=cloud' || '' }}
+          cache-to: type=gha,mode=max,scope=cloud
