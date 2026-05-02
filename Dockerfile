@@ -41,16 +41,12 @@ RUN mkdir -p /etc/apt/keyrings /usr/share/keyrings && \
     # kubectl (always included — small binary, useful with any cluster)
     curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg && \
     chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg && \
-    echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list > /dev/null && \
-    # Python 3.13 via deadsnakes PPA (not in Ubuntu 24.04 default repos)
-    add-apt-repository --no-update ppa:deadsnakes/ppa
+    echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list > /dev/null
 
 # Install all additional APT packages in one layer
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
-    python3.13 \
-    python3.13-dev \
     python3-pip \
     gh \
     kubectl
@@ -59,18 +55,31 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 COPY --from=golang:1.25 /usr/local/go /usr/local/go
 ENV PATH="/usr/local/go/bin:${PATH}"
 
+# Install Python 3.13 from official image (no PPA needed, cross-platform compatible)
+COPY --from=python:3.13 /usr/local/bin/python3.13 /usr/local/bin/python3.13
+COPY --from=python:3.13 /usr/local/lib/python3.13 /usr/local/lib/python3.13
+COPY --from=python:3.13 /usr/local/include/python3.13 /usr/local/include/python3.13
+COPY --from=python:3.13 /usr/local/lib/libpython3.13.so.1.0 /usr/local/lib/libpython3.13.so.1.0
+RUN ln -sf libpython3.13.so.1.0 /usr/local/lib/libpython3.13.so && ldconfig
+
 # Install Node.js 22 LTS via NodeSource
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
     rm -rf /var/lib/apt/lists/*
 
 # Set Python 3.13 as default and install uv
-RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.13 1 && \
-    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.13 1 && \
+RUN update-alternatives --install /usr/bin/python python /usr/local/bin/python3.13 1 && \
+    update-alternatives --install /usr/bin/python3 python3 /usr/local/bin/python3.13 1 && \
     curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
 
-# Install golangci-lint (latest version)
-RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /usr/local/bin
+# Install golangci-lint (pinned version, direct download — avoids install.sh sbom checksum bug)
+ARG GOLANGCI_LINT_VERSION=2.12.1
+RUN ARCH=$(dpkg --print-architecture) && \
+    curl -fsSLo /tmp/golangci-lint.tar.gz \
+      "https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_LINT_VERSION}/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-${ARCH}.tar.gz" && \
+    tar -xzf /tmp/golangci-lint.tar.gz -C /tmp && \
+    mv "/tmp/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-${ARCH}/golangci-lint" /usr/local/bin/golangci-lint && \
+    rm -rf /tmp/golangci-lint.tar.gz "/tmp/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-${ARCH}"
 
 # Install Python dev tools globally
 RUN --mount=type=cache,target=/root/.cache/uv \
