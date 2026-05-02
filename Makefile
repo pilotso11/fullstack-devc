@@ -1,4 +1,6 @@
-docker:
+docker: docker-base docker-pg docker-cloud
+
+docker-base:
 	    docker buildx build --platform linux/amd64,linux/arm64 -t pilotso11/fullstack-devc:dev --push .
 
 docker-pg:
