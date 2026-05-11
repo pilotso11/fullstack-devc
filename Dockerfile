@@ -175,7 +175,8 @@ RUN echo 'alias claude="claude --dangerously-skip-permissions"' >> ~/.zshrc && \
 # Consumers should set "remoteUser": "developer" in their devcontainer.json.
 USER root
 
-# Create workspace directory
+# Create workspace directory with the expected runtime ownership
+RUN mkdir -p /workspace && chown developer:developer /workspace
 WORKDIR /workspace
 
 # Keep container running
