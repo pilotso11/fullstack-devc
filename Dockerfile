@@ -171,7 +171,12 @@ RUN echo 'alias claude="claude --dangerously-skip-permissions"' >> ~/.zshrc && \
     git config --global merge.conflictstyle diff3 && \
     git config --global diff.colorMoved default
 
-# Create workspace directory
+# Switch back to root so devcontainer features can install packages.
+# Consumers should set "remoteUser": "developer" in their devcontainer.json.
+USER root
+
+# Create workspace directory with the expected runtime ownership
+RUN mkdir -p /workspace && chown developer:developer /workspace
 WORKDIR /workspace
 
 # Keep container running
