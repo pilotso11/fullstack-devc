@@ -40,7 +40,7 @@ Add a `.devcontainer/devcontainer.json` to your project:
   "image": "pilotso11/fullstack-devc:latest",
   "remoteUser": "developer",
   "mounts": [
-    "source=${localEnv:HOME}/.claude,target=/home/developer/.claude,type=bind,consistency=cached",
+    "source=myproject-claude,target=/home/developer/.claude,type=volume",
     "source=${localEnv:HOME}/.config/gcloud,target=/home/developer/.config/gcloud,type=bind"
   ],
   "postCreateCommand": "bash -c '[ -f requirements.txt ] && uv pip install --system -r requirements.txt; [ -f go.mod ] && go mod download; [ -f package.json ] && bun install; true'",
@@ -48,13 +48,32 @@ Add a `.devcontainer/devcontainer.json` to your project:
 }
 ```
 
-The `mounts` configuration shares your host's `~/.claude` directory with the container, persisting Claude Code settings, API keys, and session history across all projects. Alternatively, use a named volume for per-project isolation:
+### Claude Code config: use a named volume, not a bind mount
 
-```json
-"mounts": [
-  "source=myproject-claude-settings,target=/home/developer/.claude,type=volume"
-]
+The container's `~/.claude` uses a **named volume** so the container keeps its
+own plugins, transcripts, and auth. **Do not** bind-mount the host's `~/.claude`
+(`source=${localEnv:HOME}/.claude,...`): the host and container have different
+`$HOME` values (`/Users/<you>` vs `/home/developer`), and Claude Code's plugin
+subsystem persists **absolute** install paths. A shared directory lets the
+container write `/home/developer/...` paths back into the host's config, which
+then fail to load on the host (`cache-miss` / "plugin not cached"). Named-volume
+isolation avoids this, and also avoids handing the Linux container macOS-built
+LSP plugin binaries.
+
+To carry your **authored** config (`CLAUDE.md`, `settings.json`, agents,
+commands) into every container, keep it in a dotfiles repo and set this once in
+your **VS Code user settings**:
+
+```jsonc
+"dotfiles.repository": "<you>/claude-dotfiles",
+"dotfiles.installCommand": "install.sh"
 ```
+
+VS Code clones it into each container and your install script symlinks the
+authored files into the volume-backed `~/.claude`. Plugins re-install
+automatically from the `enabledPlugins` / `extraKnownMarketplaces` lists in
+`settings.json`, so the plugin *set* travels without the platform-specific
+binaries.
 
 ### Dependency auto-installation
 

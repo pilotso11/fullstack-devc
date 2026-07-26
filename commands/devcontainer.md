@@ -79,7 +79,7 @@ Create `.devcontainer/devcontainer.json` with this structure. Use the gathered i
   },
 
   "mounts": [
-    "source=${localEnv:HOME}/.claude,target=/home/developer/.claude,type=bind",
+    "source=<project-name>-claude,target=/home/developer/.claude,type=volume",
     "source=${localEnv:HOME}/.config/gh,target=/home/developer/.config/gh,type=bind",
     "source=/run/host-services/ssh-auth.sock,target=/ssh-agent,type=bind"
   ],
@@ -109,6 +109,16 @@ Create `.devcontainer/devcontainer.json` with this structure. Use the gathered i
   "remoteUser": "developer"
 }
 ```
+
+**Claude config mount — do not change to a bind mount:** The `~/.claude` mount is
+a **named volume**, not `source=${localEnv:HOME}/.claude,...`. Host and container
+have different `$HOME` (`/Users/<you>` vs `/home/developer`), and Claude Code
+persists absolute plugin paths; a shared bind mount lets the container poison the
+host's plugin config with `/home/developer/...` paths (`cache-miss` on the host)
+and hands the Linux container macOS-built LSP binaries. Substitute the project
+name into the volume source: `"source=<project-name>-claude,..."`. Authored config
+(CLAUDE.md, settings.json, agents, commands) is carried in via the user's VS Code
+`dotfiles.repository`; plugins re-install from `settings.json` `enabledPlugins`.
 
 **Customization rules:**
 - If the user opted **yes to gcloud**, add this mount to the `"mounts"` array:
@@ -154,7 +164,7 @@ If the user did not pass `push` and declines, just confirm the file was created.
 
 Print a summary of what was created:
 - Image used
-- Mounts configured (Claude, GH CLI, SSH agent forwarding)
+- Mounts configured (Claude named volume, GH CLI, SSH agent forwarding)
 - Extensions added
 - Ports forwarded (if any)
 - Environment variables set (if any)
@@ -162,13 +172,20 @@ Print a summary of what was created:
 
 Then print a **First use** note:
 ```
-**First use:** On macOS, Claude Code and GitHub CLI credentials are stored in the
-system Keychain and don't transfer into the container. The first time you open
-the devcontainer, run:
+**First use:** The container's ~/.claude is a named volume (container-local),
+not a bind mount of the host — this keeps the container's plugins, transcripts,
+and auth separate so it can never write container paths back into your host
+config. Credentials also live in the host Keychain and don't transfer. The first
+time you open the devcontainer, run:
 
   claude login
   gh auth login
 
-These write credentials to the bind-mounted ~/.claude and ~/.config/gh directories,
-so you only need to do this once per machine.
+The named volume persists these across rebuilds, so it's a one-time step per
+volume (per project).
+
+To carry your authored Claude config (CLAUDE.md, settings.json, agents,
+commands) into the container, keep it in a dotfiles repo and set in your VS Code
+user settings:  "dotfiles.repository": "<you>/claude-dotfiles". Plugins
+re-install automatically from settings.json's enabledPlugins list.
 ```
