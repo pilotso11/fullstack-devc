@@ -10,7 +10,7 @@ A polyglot development container with Python, Go, and TypeScript/JavaScript tool
 | Go | 1.25 | native | `golangci-lint` |
 | TypeScript/JS | Bun | `bun` | ESLint, Prettier |
 
-Also includes: Git, GitHub CLI (`gh`), kubectl, jq, vim, nano, Claude Code, claude-switch, OpenAI Codex CLI (`codex`), GitHub Copilot CLI (`copilot`).
+Also includes: Git, GitHub CLI (`gh`), kubectl, jq, vim, nano, Claude Code, claude-switch, OpenAI Codex CLI (`codex`), GitHub Copilot CLI (`copilot`), and the pi coding agent (`pi`).
 
 Google Cloud CLI (`gcloud`), AWS CLI (`aws`), and kubectl are available in the `-cloud` image variant.
 
@@ -41,6 +41,7 @@ Add a `.devcontainer/devcontainer.json` to your project:
   "remoteUser": "developer",
   "mounts": [
     "source=myproject-claude,target=/home/developer/.claude,type=volume",
+    "source=myproject-pi,target=/home/developer/.pi,type=volume",
     "source=${localEnv:HOME}/.config/gcloud,target=/home/developer/.config/gcloud,type=bind"
   ],
   "postCreateCommand": "bash -c '[ -f requirements.txt ] && uv pip install --system -r requirements.txt; [ -f go.mod ] && go mod download; [ -f package.json ] && bun install; true'",
@@ -74,6 +75,16 @@ authored files into the volume-backed `~/.claude`. Plugins re-install
 automatically from the `enabledPlugins` / `extraKnownMarketplaces` lists in
 `settings.json`, so the plugin *set* travels without the platform-specific
 binaries.
+
+### pi coding agent config
+
+The pi coding agent stores its settings, sessions, installed packages, and model
+catalogs under `~/.pi/agent/`. The example above mounts this on a **named
+volume** (`source=myproject-pi,target=/home/developer/.pi`) for the same reasons
+as the Claude config: it keeps the container's pi state isolated from the host,
+persists across image rebuilds, and avoids host/container `$HOME` mismatch
+issues. On first use, run `pi` then `/login` (or export a provider key such as
+`ANTHROPIC_API_KEY`).
 
 ### Dependency auto-installation
 
