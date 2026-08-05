@@ -80,6 +80,7 @@ Create `.devcontainer/devcontainer.json` with this structure. Use the gathered i
 
   "mounts": [
     "source=<project-name>-claude,target=/home/developer/.claude,type=volume",
+    "source=<project-name>-pi,target=/home/developer/.pi,type=volume",
     "source=${localEnv:HOME}/.config/gh,target=/home/developer/.config/gh,type=bind",
     "source=/run/host-services/ssh-auth.sock,target=/ssh-agent,type=bind"
   ],
@@ -104,7 +105,7 @@ Create `.devcontainer/devcontainer.json` with this structure. Use the gathered i
   "overrideCommand": false,
 
   "postCreateCommand": "sudo mkdir -p /home/developer/.ssh && sudo chown developer:developer /home/developer/.ssh && ssh-keyscan github.com >> /home/developer/.ssh/known_hosts 2>/dev/null; true",
-  "postStartCommand": "sudo chown -R developer:developer /home/developer/.claude /home/developer/.config/gh /home/developer/.ssh 2>/dev/null; true",
+  "postStartCommand": "sudo chown -R developer:developer /home/developer/.claude /home/developer/.pi /home/developer/.config/gh /home/developer/.ssh 2>/dev/null; true",
 
   "remoteUser": "developer"
 }
@@ -119,6 +120,12 @@ and hands the Linux container macOS-built LSP binaries. Substitute the project
 name into the volume source: `"source=<project-name>-claude,..."`. Authored config
 (CLAUDE.md, settings.json, agents, commands) is carried in via the user's VS Code
 `dotfiles.repository`; plugins re-install from `settings.json` `enabledPlugins`.
+
+**pi config mount:** `~/.pi` follows the same named-volume pattern as `~/.claude`
+(`source=<project-name>-pi,target=/home/developer/.pi`). pi keeps its settings,
+sessions, installed packages, and model catalogs under `~/.pi/agent/`; a named
+volume keeps that state container-local and persistent across rebuilds. Do not
+bind-mount the host's `~/.pi`.
 
 **Customization rules:**
 - If the user opted **yes to gcloud**, add this mount to the `"mounts"` array:
@@ -164,7 +171,7 @@ If the user did not pass `push` and declines, just confirm the file was created.
 
 Print a summary of what was created:
 - Image used
-- Mounts configured (Claude named volume, GH CLI, SSH agent forwarding)
+- Mounts configured (Claude + pi named volumes, GH CLI, SSH agent forwarding)
 - Extensions added
 - Ports forwarded (if any)
 - Environment variables set (if any)
@@ -180,6 +187,7 @@ time you open the devcontainer, run:
 
   claude login
   gh auth login
+  pi        # then /login to select a provider (or set ANTHROPIC_API_KEY)
 
 The named volume persists these across rebuilds, so it's a one-time step per
 volume (per project).
