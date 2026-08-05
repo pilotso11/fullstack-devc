@@ -161,8 +161,13 @@ RUN curl -fsSL https://claude.ai/install.sh | bash
 # Install claude-switch (toggle between Claude API backends)
 RUN curl -sSL https://raw.githubusercontent.com/pilotso11/claude-switch/main/install.sh | bash
 
-# Install pi coding agent (https://pi.dev) — uses the system Node.js (>=22.19)
-RUN sudo npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+# Install pi coding agent (https://pi.dev) — uses the system Node.js (>=22.19).
+# Verify the binary is on PATH so the build fails fast if the package layout/bin
+# name changes upstream.
+USER root
+RUN npm install -g --ignore-scripts @earendil-works/pi-coding-agent && \
+    command -v pi && pi --version
+USER developer
 
 # Configure claude alias and git-delta for convenience
 RUN echo 'alias claude="claude --dangerously-skip-permissions"' >> ~/.zshrc && \
