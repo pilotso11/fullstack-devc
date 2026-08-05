@@ -45,7 +45,7 @@ docker build -t fullstack-devc:local .
 | Go | 1.25 | native | `golangci-lint` v1.56.2 |
 | TypeScript/JS | Bun | `bun` | ESLint, Prettier |
 
-Claude Code is also pre-installed at `/root/.claude/bin`.
+Claude Code is also pre-installed at `/root/.claude/bin`, as is the pi coding agent (`pi`) and the OpenAI Codex / GitHub Copilot CLIs.
 
 ### Port Forwarding (devcontainer)
 
